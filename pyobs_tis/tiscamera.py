@@ -1,0 +1,106 @@
+from datetime import datetime
+import threading
+import logging
+import numpy as np
+
+from astropy.io import fits
+from pyobs.interfaces import ICamera
+from pyobs.modules.camera import BaseCamera
+
+from . import tisgrabber as IC
+
+
+log = logging.getLogger(__name__)
+
+
+class TisCamera(BaseCamera):
+    def __init__(self, device: str, format: str, *args, **kwargs):
+        BaseCamera.__init__(self, *args, **kwargs)
+
+        # store
+        self._device = device
+        self._format = format
+
+        # create the camera object.
+        self._camera = IC.TIS_CAM()
+
+    def open(self):
+        """Open module"""
+        BaseCamera.open(self)
+
+        # open camera
+        self._camera.open(self._device)
+
+        # set video format
+        self._camera.SetVideoFormat(self._format)
+
+        # start the live video stream
+        self._camera.StartLive(0)
+
+        # disable exposure automatic
+        self._camera.SetPropertySwitch("Exposure", "Auto", 0)
+
+        # gain and whitebalance
+        self._camera.SetPropertySwitch("Gain", "Auto", 0)
+        self._camera.SetPropertyValue("Gain", "Value", 10)
+        self._camera.SetPropertyValue("WhiteBalance", "White Balance Red", 64)
+        self._camera.SetPropertyValue("WhiteBalance", "White Balance Green", 64)
+        self._camera.SetPropertyValue("WhiteBalance", "White Balance Blue", 64)
+
+    def close(self):
+        """Close module"""
+        BaseCamera.close(self)
+
+        # stop live video stream
+        self._camera.StopLive()
+
+    def _expose(self, exposure_time: int, open_shutter: bool, abort_event: threading.Event) -> fits.PrimaryHDU:
+        """Actually do the exposure, should be implemented by derived classes.
+
+        Args:
+            exposure_time: The requested exposure time in ms.
+            open_shutter: Whether or not to open the shutter.
+            abort_event: Event that gets triggered when exposure should be aborted.
+
+        Returns:
+            The actual image.
+
+        Raises:
+            ValueError: If exposure was not successful.
+        """
+        pass
+
+        # set an absolute exposure time
+        self._camera.SetPropertyAbsoluteValue("Exposure", "Value", exposure_time / 1000.)
+
+        # set exposing
+        self._change_exposure_status(ICamera.ExposureStatus.EXPOSING)
+
+        # get date obs
+        log.info('Starting exposure with %s shutter for %.2f seconds...',
+                 'open' if open_shutter else 'closed', exposure_time / 1000.)
+        date_obs = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")
+
+        # Snap an image
+        self._camera.SnapImage()
+
+        # Get the image
+        image = self._camera.GetImage()[:, :, 1]
+
+        # create FITS image and set header
+        hdu = fits.PrimaryHDU(image)
+        hdu.header['DATE-OBS'] = (date_obs, 'Date and time of start of exposure')
+        hdu.header['EXPTIME'] = (exposure_time / 1000., 'Exposure time [s]')
+
+        # statistics
+        hdu.header['DATAMIN'] = (float(np.min(image)), 'Minimum data value')
+        hdu.header['DATAMAX'] = (float(np.max(image)), 'Maximum data value')
+        hdu.header['DATAMEAN'] = (float(np.mean(image)), 'Mean data value')
+
+        # return FITS image
+        log.info('Readout finished.')
+        self._change_exposure_status(ICamera.ExposureStatus.IDLE)
+        return hdu
+
+
+__all__ = ['TisCamera']
