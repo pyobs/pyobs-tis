@@ -3,9 +3,9 @@ import threading
 import logging
 import numpy as np
 
-from astropy.io import fits
-from pyobs.interfaces import ICamera
+from pyobs.images import Image
 from pyobs.modules.camera import BaseCamera
+from pyobs.utils.enums import ExposureStatus
 
 from . import tisgrabber as IC
 
@@ -54,11 +54,11 @@ class TisCamera(BaseCamera):
         # stop live video stream
         self._camera.StopLive()
 
-    def _expose(self, exposure_time: int, open_shutter: bool, abort_event: threading.Event) -> fits.PrimaryHDU:
+    def _expose(self, exposure_time: float, open_shutter: bool, abort_event: threading.Event) -> Image:
         """Actually do the exposure, should be implemented by derived classes.
 
         Args:
-            exposure_time: The requested exposure time in ms.
+            exposure_time: The requested exposure time in seconds.
             open_shutter: Whether or not to open the shutter.
             abort_event: Event that gets triggered when exposure should be aborted.
 
@@ -68,13 +68,12 @@ class TisCamera(BaseCamera):
         Raises:
             ValueError: If exposure was not successful.
         """
-        pass
 
         # set an absolute exposure time
         self._camera.SetPropertyAbsoluteValue("Exposure", "Value", exposure_time / 1000.)
 
         # set exposing
-        self._change_exposure_status(ICamera.ExposureStatus.EXPOSING)
+        self._change_exposure_status(ExposureStatus.EXPOSING)
 
         # get date obs
         log.info('Starting exposure with %s shutter for %.2f seconds...',
@@ -85,22 +84,22 @@ class TisCamera(BaseCamera):
         self._camera.SnapImage()
 
         # Get the image
-        image = self._camera.GetImage()[:, :, 1]
+        data = self._camera.GetImage()[:, :, 1]
 
         # create FITS image and set header
-        hdu = fits.PrimaryHDU(image)
-        hdu.header['DATE-OBS'] = (date_obs, 'Date and time of start of exposure')
-        hdu.header['EXPTIME'] = (exposure_time / 1000., 'Exposure time [s]')
+        img = Image.from_bytes(data)
+        img.header['DATE-OBS'] = (date_obs, 'Date and time of start of exposure')
+        img.header['EXPTIME'] = (exposure_time / 1000., 'Exposure time [s]')
 
         # statistics
-        hdu.header['DATAMIN'] = (float(np.min(image)), 'Minimum data value')
-        hdu.header['DATAMAX'] = (float(np.max(image)), 'Maximum data value')
-        hdu.header['DATAMEAN'] = (float(np.mean(image)), 'Mean data value')
+        img.header['DATAMIN'] = (float(np.min(data)), 'Minimum data value')
+        img.header['DATAMAX'] = (float(np.max(data)), 'Maximum data value')
+        img.header['DATAMEAN'] = (float(np.mean(data)), 'Mean data value')
 
         # return FITS image
         log.info('Readout finished.')
-        self._change_exposure_status(ICamera.ExposureStatus.IDLE)
-        return hdu
+        self._change_exposure_status(ExposureStatus.IDLE)
+        return img
 
 
 __all__ = ['TisCamera']
