@@ -24,10 +24,11 @@ class TisCamera(BaseWebcam):
         self._camera = TIS.TIS()
         self._camera.openDevice(self._device, 1280, 960, "15/1", TIS.SinkFormats.GRAY8, False)
         self._camera.Set_Image_Callback(self.new_image)
+        self._camera.Set_Property("Exposure", 1000)
 
         # start taking images
         if not self._camera.Start_pipeline():
-            raise ValueError('Couldf not start pipeline.')
+            raise ValueError('Could not start pipeline.')
 
     def close(self):
         """Close module"""
