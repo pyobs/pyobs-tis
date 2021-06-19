@@ -27,7 +27,7 @@ class TisCamera(BaseWebcam):
 
         # start taking images
         if not self._camera.Start_pipeline():
-            raise ValueError('Could not start pipeline.')
+            raise ValueError('Couldf not start pipeline.')
 
     def close(self):
         """Close module"""
