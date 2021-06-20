@@ -17,7 +17,7 @@ class TisCamera(BaseWebcam):
         self._camera = None
 
     def open(self):
-        """Open module"""
+        """Open module"""p
         BaseWebcam.open(self)
 
         # open camera
