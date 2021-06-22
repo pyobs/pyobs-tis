@@ -1,15 +1,15 @@
 import time
 import logging
 
-from pyobs.modules.camera import BaseWebcam
+from pyobs.modules.camera import BaseVideo
 from . import TIS
 
 log = logging.getLogger(__name__)
 
 
-class TisCamera(BaseWebcam):
+class TisCamera(BaseVideo):
     def __init__(self, device: str, format: str, *args, **kwargs):
-        BaseWebcam.__init__(self, *args, **kwargs)
+        BaseVideo.__init__(self, *args, **kwargs)
 
         # store
         self._device = device
@@ -19,7 +19,7 @@ class TisCamera(BaseWebcam):
 
     def open(self):
         """Open module"""
-        BaseWebcam.open(self)
+        BaseVideo.open(self)
 
         # create camera
         self._camera = TIS.TIS()
@@ -46,7 +46,7 @@ class TisCamera(BaseWebcam):
 
     def close(self):
         """Close module"""
-        BaseWebcam.close(self)
+        BaseVideo.close(self)
 
         # stop live video stream
         self._camera.Stop_pipeline()
