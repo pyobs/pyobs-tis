@@ -6,9 +6,11 @@ authors = ["Tim-Oliver Husser <thusser@uni-goettingen.de>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
+python = ">=3.9,<3.11"
 
 [tool.poetry.dev-dependencies]
-python = ">=3.9,<3.11"
+black = "^21.12b0"
+pre-commit = "^2.16.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
