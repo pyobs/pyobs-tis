@@ -11,9 +11,9 @@ gi.require_version("Gst", "1.0")
 gi.require_version("Tcam", "0.1")
 
 
-
 DeviceInfo = namedtuple("DeviceInfo", "status name identifier connection_type")
 CameraProperty = namedtuple("CameraProperty", "status value min max default step type flags category group")
+
 
 class SinkFormats(Enum):
     GRAY8 = 0
@@ -21,29 +21,30 @@ class SinkFormats(Enum):
     BGRA = 2
 
     def toString(pf):
-        if( pf == SinkFormats.GRAY16_LE ):
+        if pf == SinkFormats.GRAY16_LE:
             return "GRAY16_LE"
 
-        if( pf == SinkFormats.GRAY8 ):
+        if pf == SinkFormats.GRAY8:
             return "GRAY8"
 
-        if( pf == SinkFormats.BGRA ):
+        if pf == SinkFormats.BGRA:
             return "BGRx"
 
         return "BGRx"
 
+
 class TIS:
-    'The Imaging Source Camera'
+    "The Imaging Source Camera"
 
     def __init__(self):
-        ''' Constructor
+        """Constructor
         :return: none
-        '''
+        """
         Gst.init([])
         self.serialnumber = ""
         self.height = 0
         self.width = 0
-        self.framerate="15/1"
+        self.framerate = "15/1"
         self.livedisplay = True
         self.sinkformat = SinkFormats.BGRA
         self.sample = None
@@ -53,15 +54,15 @@ class TIS:
         self.ImageCallback = None
         self.pipeline = None
 
-    def openDevice(self,serial, width, height, framerate, sinkformat: SinkFormats, showvideo: bool):
-        ''' Inialize a device, e.g. camera.
+    def openDevice(self, serial, width, height, framerate, sinkformat: SinkFormats, showvideo: bool):
+        """Inialize a device, e.g. camera.
         :param serial: Serial number of the camera to be used.
         :param width: Width of the wanted video format
         :param height: Height of the wanted video format
         :param framerate: Numerator of the frame rate. /1 is added automatically
         :param color: True = 8 bit color, False = 8 bit mono. ToDo: Y16
         :return: none
-        '''
+        """
         self.serialnumber = serial
         self.height = height
         self.width = width
@@ -72,13 +73,13 @@ class TIS:
         self.source.set_property("serial", self.serialnumber)
 
     def _createPipeline(self):
-        p = 'tcambin name=source ! capsfilter name=caps'
+        p = "tcambin name=source ! capsfilter name=caps"
         if self.livedisplay is True:
             p += " ! tee name=t"
             p += " t. ! queue ! videoconvert ! ximagesink"
             p += " t. ! queue ! appsink name=sink"
         else:
-            p += ' ! appsink name=sink'
+            p += " ! appsink name=sink"
 
         print(p)
         try:
@@ -92,38 +93,42 @@ class TIS:
 
         # Query a pointer to the appsink, so we can assign the callback function.
         self.appsink = self.pipeline.get_by_name("sink")
-        self.appsink.set_property("max-buffers",5)
-        self.appsink.set_property("drop",1)
-        self.appsink.set_property("emit-signals",1)
-        self.appsink.connect('new-sample', self.on_new_buffer)
-
+        self.appsink.set_property("max-buffers", 5)
+        self.appsink.set_property("drop", 1)
+        self.appsink.set_property("emit-signals", 1)
+        self.appsink.connect("new-sample", self.on_new_buffer)
 
     def on_new_buffer(self, appsink):
         self.newsample = True
         if self.samplelocked is False:
             try:
-                self.sample = appsink.get_property('last-sample')
+                self.sample = appsink.get_property("last-sample")
                 if self.ImageCallback is not None:
                     self.__convert_sample_to_numpy()
-                    self.ImageCallback(self, *self.ImageCallbackData);
+                    self.ImageCallback(self, *self.ImageCallbackData)
 
             except GLib.Error as error:
                 print("Error on_new_buffer pipeline: {0}".format(error))
                 raise
         return False
 
-    def setSinkFormat( self, sf: SinkFormats):
+    def setSinkFormat(self, sf: SinkFormats):
         self.sinkformat = sf
 
-    def showLive( self, show: bool):
+    def showLive(self, show: bool):
         self.livedisplay = show
 
     def _setcaps(self):
-        """ 
+        """
         Set pixel and sink format and frame rate
         """
         caps = Gst.Caps.new_empty()
-        format = 'video/x-raw,format=%s,width=%d,height=%d,framerate=%s' % ( SinkFormats.toString(self.sinkformat),self.width,self.height,self.framerate,)
+        format = "video/x-raw,format=%s,width=%d,height=%d,framerate=%s" % (
+            SinkFormats.toString(self.sinkformat),
+            self.width,
+            self.height,
+            self.framerate,
+        )
         structure = Gst.Structure.new_from_string(format)
 
         caps.append_structure(structure)
@@ -139,23 +144,23 @@ class TIS:
         try:
             self._setcaps()
             self.pipeline.set_state(Gst.State.PLAYING)
-            error = self.pipeline.get_state(5000000000) 
+            error = self.pipeline.get_state(5000000000)
             if error[1] != Gst.State.PLAYING:
-                print("Error starting pipeline. {0}".format("") )    
+                print("Error starting pipeline. {0}".format(""))
                 return False
 
-        except: # GError as error:
+        except:  # GError as error:
             print("Error starting pipeline: {0}".format("unknown too"))
             raise
         return True
 
     def __convert_sample_to_numpy(self):
-        ''' Convert a GStreamer sample to a numpy array
+        """Convert a GStreamer sample to a numpy array
             Sample code from https://gist.github.com/cbenhagen/76b24573fa63e7492fb6#file-gst-appsink-opencv-py-L34
 
             The result is in self.img_mat.
         :return:
-        '''
+        """
         self.samplelocked = True
         buf = self.sample.get_buffer()
         caps = self.sample.get_caps()
@@ -164,34 +169,33 @@ class TIS:
         if success:
             data = info.data
             mem.unmap(info)
-                
+
             bpp = 4
             dtype = numpy.uint8
-            bla = caps.get_structure(0).get_value('height')
-            if( caps.get_structure(0).get_value('format') == "BGRx" ):
+            bla = caps.get_structure(0).get_value("height")
+            if caps.get_structure(0).get_value("format") == "BGRx":
                 bpp = 4
 
-            if(caps.get_structure(0).get_value('format') == "GRAY8" ):
+            if caps.get_structure(0).get_value("format") == "GRAY8":
                 bpp = 1
 
-            if(caps.get_structure(0).get_value('format') == "GRAY16_LE" ):
+            if caps.get_structure(0).get_value("format") == "GRAY16_LE":
                 bpp = 1
                 dtype = numpy.uint16
 
             self.img_mat = numpy.ndarray(
-                (caps.get_structure(0).get_value('height'),
-                caps.get_structure(0).get_value('width'),
-                bpp),
+                (caps.get_structure(0).get_value("height"), caps.get_structure(0).get_value("width"), bpp),
                 buffer=data,
-                dtype=dtype)
+                dtype=dtype,
+            )
             self.newsample = False
             self.samplelocked = False
 
-    def wait_for_image(self,timeout):
-        ''' Wait for a new image with timeout
+    def wait_for_image(self, timeout):
+        """Wait for a new image with timeout
         :param timeout: wait time in second, should be a float number
         :return:
-        '''
+        """
 
         tries = 10
         while tries > 0 and not self.newsample:
@@ -199,17 +203,17 @@ class TIS:
             time.sleep(float(timeout) / 10.0)
 
     def Snap_image(self, timeout):
-        '''
+        """
         Snap an image from stream using a timeout.
         :param timeout: wait time in second, should be a float number. Not used
         :return: bool: True, if we got a new image, otherwise false.
-        '''
+        """
         if self.ImageCallback is not None:
             print("Snap_image can not be called, if a callback is set.")
             return False
 
         self.wait_for_image(timeout)
-        if( self.sample != None and self.newsample == True):
+        if self.sample != None and self.newsample == True:
             self.__convert_sample_to_numpy()
             return True
 
@@ -225,20 +229,20 @@ class TIS:
 
     def List_Properties(self):
         for name in self.source.get_tcam_property_names():
-            print( name )
+            print(name)
 
     def Get_Property(self, PropertyName):
         try:
             return CameraProperty(*self.source.get_tcam_property(PropertyName))
         except GLib.Error as error:
-            print("Error get Property {0}: {1}",PropertyName, format(error))
+            print("Error get Property {0}: {1}", PropertyName, format(error))
             raise
 
     def Set_Property(self, PropertyName, value):
         try:
-            self.source.set_tcam_property(PropertyName,GObject.Value(type(value),value))
+            self.source.set_tcam_property(PropertyName, GObject.Value(type(value), value))
         except GLib.Error as error:
-            print("Error set Property {0}: {1}",PropertyName, format(error))
+            print("Error set Property {0}: {1}", PropertyName, format(error))
             raise
 
     def Set_Image_Callback(self, function, *data):
@@ -246,9 +250,9 @@ class TIS:
         self.ImageCallbackData = data
 
     def selectDevice(self):
-        ''' Select a camera, its video format and frame rate
+        """Select a camera, its video format and frame rate
         :return: True on success, False on nothing selected
-        '''
+        """
         source = Gst.ElementFactory.make("tcamsrc")
         serials = source.get_device_serials()
 
@@ -260,7 +264,7 @@ class TIS:
             # since we are iterating get_device_serials this should not happen
             if return_value:
                 i = i + 1
-                print("{} : Model: {} Serial: {} ".format(i, model,single_serial))
+                print("{} : Model: {} Serial: {} ".format(i, model, single_serial))
 
         source = None
 
@@ -269,17 +273,16 @@ class TIS:
             if i == 0:
                 return False
 
-            self.serialnumber = serials[i-1]
+            self.serialnumber = serials[i - 1]
             return self.selectFormat()
 
         return False
 
-
     def selectFormat(self):
         formats = self.createFormats()
         i = 0
-        f =[] 
-        for key,value in formats.items():
+        f = []
+        for key, value in formats.items():
             f.append(key)
             i = i + 1
             print("{}: {}".format(i, key))
@@ -288,35 +291,32 @@ class TIS:
         if i == 0:
             return False
 
-        format = f[i-1] 
+        format = f[i - 1]
         i = 0
         for res in formats[format].res_list:
             i = i + 1
-            print("{}:  {}x{}".format(i, res.width,res.height))
+            print("{}:  {}x{}".format(i, res.width, res.height))
 
         i = int(input("Select : "))
         if i == 0:
             return False
 
-
-        width=formats[format].res_list[i-1].width
-        height =formats[format].res_list[i-1].height
+        width = formats[format].res_list[i - 1].width
+        height = formats[format].res_list[i - 1].height
         o = 0
-        for rate in formats[format].res_list[i-1].fps :
+        for rate in formats[format].res_list[i - 1].fps:
             o += 1
             print("{}:  {}".format(o, rate))
 
-        framerate = formats[format].res_list[i-1].fps[o-1] 
+        framerate = formats[format].res_list[i - 1].fps[o - 1]
         o = int(input("Select : "))
         if o == 0:
             return False
 
-        framerate = formats[format].res_list[i-1].fps[o-1] 
-        #print(format,width,height,framerate )
+        framerate = formats[format].res_list[i - 1].fps[o - 1]
+        # print(format,width,height,framerate )
         self.openDevice(self.serialnumber, width, height, framerate, SinkFormats.BGRA, True)
         return True
-
-
 
     def createFormats(self):
         source = Gst.ElementFactory.make("tcambin")
@@ -335,10 +335,9 @@ class TIS:
 
                 if format not in format_dict:
                     format_dict[format] = FmtDesc(name, format)
-                    
 
                 width = structure.get_value("width")
-                height = structure.get_value("height")       
+                height = structure.get_value("height")
 
                 rates = self.get_framerates(structure)
 
@@ -346,7 +345,7 @@ class TIS:
                 for rate in rates:
                     r.append(str(rate))
 
-                format_dict[format].res_list.append(ResDesc(width,height,r))        
+                format_dict[format].res_list.append(ResDesc(width, height, r))
 
             except:
                 pass
@@ -362,7 +361,7 @@ class TIS:
             rates = fmt.get_value("framerate")
         except TypeError:
             # Workaround for missing GstValueList support in GI
-            substr = fmt.to_string()[fmt.to_string().find("framerate="):]
+            substr = fmt.to_string()[fmt.to_string().find("framerate=") :]
             # try for frame rate lists
             field, values, remain = re.split("{|}", substr, maxsplit=3)
             rates = [x.strip() for x in values.split(",")]
@@ -371,10 +370,8 @@ class TIS:
 
 class ResDesc:
     """"""
-    def __init__(self,                 
-                 width: int,
-                 height: int,
-                 fps: list):
+
+    def __init__(self, width: int, height: int, fps: list):
         self.width = width
         self.height = height
         self.fps = fps
@@ -383,9 +380,7 @@ class ResDesc:
 class FmtDesc:
     """"""
 
-    def __init__(self,
-                 name: str = "",
-                 fmt: str = ""):
+    def __init__(self, name: str = "", fmt: str = ""):
         self.name = name
         self.fmt = fmt
         self.res_list = []
@@ -413,13 +408,10 @@ class FmtDesc:
 
     def generate_caps_string(self, resolution: str, fps: str):
         if self.name == "image/jpeg":
-            return "{},width={},height={},framerate={}".format(self.name,
-                                                               resolution.split('x')[0],
-                                                               resolution.split('x')[1],
-                                                               fps)
+            return "{},width={},height={},framerate={}".format(
+                self.name, resolution.split("x")[0], resolution.split("x")[1], fps
+            )
         else:
-            return "{},format={},width={},height={},framerate={}".format(self.name,
-                                                                         self.fmt,
-                                                                         resolution.split('x')[0],
-                                                                         resolution.split('x')[1],
-                                                                         fps)
+            return "{},format={},width={},height={},framerate={}".format(
+                self.name, self.fmt, resolution.split("x")[0], resolution.split("x")[1], fps
+            )

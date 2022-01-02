@@ -1,5 +1,6 @@
 import time
 import logging
+from typing import Any
 
 from pyobs.modules.camera import BaseVideo
 from . import TIS
@@ -8,8 +9,8 @@ log = logging.getLogger(__name__)
 
 
 class TisCamera(BaseVideo):
-    def __init__(self, device: str, format: str, *args, **kwargs):
-        BaseVideo.__init__(self, *args, **kwargs)
+    def __init__(self, device: str, format: str, **kwargs: Any):
+        BaseVideo.__init__(self, **kwargs)
 
         # store
         self._device = device
@@ -17,9 +18,9 @@ class TisCamera(BaseVideo):
         self._camera = None
         self._last_image_time = None
 
-    def open(self):
+    async def open(self) -> None:
         """Open module"""
-        BaseVideo.open(self)
+        await BaseVideo.open(self)
 
         # create camera
         self._camera = TIS.TIS()
@@ -28,7 +29,7 @@ class TisCamera(BaseVideo):
         # get formats
         formats = self._camera.createFormats()
         if self._format not in formats:
-            raise ValueError('Invalid format: %s' % self._format)
+            raise ValueError("Invalid format: %s" % self._format)
         fmt = formats[self._format]
 
         # resolution and fps
@@ -36,29 +37,29 @@ class TisCamera(BaseVideo):
         fps = res.fps[0]
 
         # open camera
-        log.info('Opening webcam with %dx%d at %s fps.', res.width, res.height, fps)
+        log.info("Opening webcam with %dx%d at %s fps.", res.width, res.height, fps)
         self._camera.openDevice(self._device, res.width, res.height, fps, TIS.SinkFormats.GRAY8, False)
         self._camera.Set_Image_Callback(self.new_image)
 
         # start taking images
         if not self._camera.Start_pipeline():
-            raise ValueError('Could not start pipeline.')
+            raise ValueError("Could not start pipeline.")
 
-    def close(self):
+    async def close(self) -> None:
         """Close module"""
-        BaseVideo.close(self)
+        await BaseVideo.close(self)
 
         # stop live video stream
         self._camera.Stop_pipeline()
 
-    def new_image(self, tis):
+    async def new_image(self, tis: TIS.TIS) -> None:
         if self._last_image_time is not None and time.time() < self._last_image_time + self._interval:
             return
         self._last_image_time = time.time()
 
         # get image and process it
         img = self._camera.Get_image()
-        self._set_image(img[:, :, 0])
+        await self._set_image(img[:, :, 0])
 
 
-__all__ = ['TisCamera']
+__all__ = ["TisCamera"]
