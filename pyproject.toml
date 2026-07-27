@@ -9,7 +9,7 @@ license = "MIT"
 python = ">=3.9,<3.13"
 
 [tool.poetry.dev-dependencies]
-black = "^24.8"
+black = "^25.11"
 pre-commit = "^2.16.0"
 
 [build-system]
