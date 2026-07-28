@@ -1,8 +1,9 @@
-import time
 import logging
+import time
 from typing import Any
 
 from pyobs.modules.camera import BaseVideo
+
 from . import TIS
 
 log = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class TisCamera(BaseVideo):
         # get formats
         formats = self._camera.createFormats()
         if self._format not in formats:
-            raise ValueError("Invalid format: %s" % self._format)
+            raise ValueError(f"Invalid format: {self._format}")
         fmt = formats[self._format]
 
         # resolution and fps
