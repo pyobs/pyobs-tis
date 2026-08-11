@@ -11,7 +11,7 @@ gi.require_version("Gst", "1.0")
 gi.require_version("Tcam", "1.0")
 
 
-DeviceInfo = namedtuple("DeviceInfo", "status name identifier connection_type")
+DeviceInfo = namedtuple("DeviceInfo", "serial name identifier connection_type")
 CameraProperty = namedtuple("CameraProperty", "status value min max default step type flags category group")
 
 
@@ -166,7 +166,6 @@ class TIS:
         success, info = mem.map(Gst.MapFlags.READ)
         if success:
             data = info.data
-            mem.unmap(info)
 
             bpp = 4
             dtype = numpy.uint8
@@ -180,11 +179,14 @@ class TIS:
                 bpp = 1
                 dtype = numpy.uint16
 
+            # copy the data out before unmapping, since the underlying GstMemory can be
+            # recycled/freed as soon as we unmap it
             self.img_mat = numpy.ndarray(
                 (caps.get_structure(0).get_value("height"), caps.get_structure(0).get_value("width"), bpp),
                 buffer=data,
                 dtype=dtype,
-            )
+            ).copy()
+            mem.unmap(info)
             self.newsample = False
             self.samplelocked = False
 
@@ -224,8 +226,12 @@ class TIS:
         self.pipeline.set_state(Gst.State.READY)
         self.pipeline.set_state(Gst.State.NULL)
 
+    def get_property_names(self) -> list:
+        """Return the list of tcam property names for the currently open device."""
+        return list(self.source.get_tcam_property_names())
+
     def List_Properties(self):
-        for name in self.source.get_tcam_property_names():
+        for name in self.get_property_names():
             print(name)
 
     def Get_Property(self, PropertyName):
@@ -245,6 +251,20 @@ class TIS:
     def Set_Image_Callback(self, function, *data):
         self.ImageCallback = function
         self.ImageCallbackData = data
+
+    @staticmethod
+    def list_devices() -> list["DeviceInfo"]:
+        """Enumerate available TIS/tcam devices, without any interactive prompts."""
+        source = Gst.ElementFactory.make("tcamsrc")
+        serials = source.get_device_serials()
+
+        devices = []
+        for serial in serials:
+            status, model, identifier, connection_type = source.get_device_info(serial)
+            if status:
+                devices.append(DeviceInfo(serial, model, identifier, connection_type))
+
+        return devices
 
     def selectDevice(self):
         """Select a camera, its video format and frame rate
