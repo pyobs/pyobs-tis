@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from typing import Any
@@ -18,6 +19,7 @@ class TisCamera(BaseVideo):
         self._format = format
         self._camera = None
         self._last_image_time = None
+        self._loop = None
 
     async def open(self) -> None:
         """Open module"""
@@ -40,10 +42,14 @@ class TisCamera(BaseVideo):
         # open camera
         log.info("Opening webcam with %dx%d at %s fps.", res.width, res.height, fps)
         self._camera.openDevice(self._device, res.width, res.height, fps, TIS.SinkFormats.GRAY8, False)
-        self._camera.Set_Image_Callback(self.new_image)
+
+        # remember the event loop, since the image callback fires on a GStreamer thread
+        self._loop = asyncio.get_running_loop()
+        self._camera.Set_Image_Callback(self._on_new_image)
 
         # start taking images
         if not self._camera.Start_pipeline():
+            self._camera.Stop_pipeline()
             raise ValueError("Could not start pipeline.")
 
     async def close(self) -> None:
@@ -52,6 +58,10 @@ class TisCamera(BaseVideo):
 
         # stop live video stream
         self._camera.Stop_pipeline()
+
+    def _on_new_image(self, tis: TIS.TIS) -> None:
+        """Called by TIS on its own GStreamer thread — schedule the coroutine onto our event loop."""
+        asyncio.run_coroutine_threadsafe(self.new_image(tis), self._loop)
 
     async def new_image(self, tis: TIS.TIS) -> None:
         if self._last_image_time is not None and time.time() < self._last_image_time + self._interval:
