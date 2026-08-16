@@ -4,8 +4,6 @@ from typing import Any
 
 from pyobs.modules.camera import BaseVideo
 
-from . import TIS
-
 log = logging.getLogger(__name__)
 
 
@@ -16,12 +14,17 @@ class TisCamera(BaseVideo):
         # store
         self._device = device
         self._format = format
-        self._camera = None
-        self._last_image_time = None
+        # typed as Any: the underlying TIS wrapper is a dynamic GObject/GStreamer binding
+        self._camera: Any = None
+        self._last_image_time: float | None = None
 
     async def open(self) -> None:
         """Open module"""
         await BaseVideo.open(self)
+
+        # imported lazily: TIS pulls in gi + the GStreamer/Tcam typelibs at import time,
+        # which aren't available on a plain CI runner
+        from . import TIS
 
         # create camera
         self._camera = TIS.TIS()
@@ -53,7 +56,7 @@ class TisCamera(BaseVideo):
         # stop live video stream
         self._camera.Stop_pipeline()
 
-    async def new_image(self, tis: TIS.TIS) -> None:
+    async def new_image(self, tis: Any) -> None:
         if self._last_image_time is not None and time.time() < self._last_image_time + self._interval:
             return
         self._last_image_time = time.time()
