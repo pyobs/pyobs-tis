@@ -55,6 +55,7 @@ class TIS:
         self.ImageCallback = None
         self.pipeline = None
         self._lock = threading.Lock()
+        self._stopped = False
 
     def openDevice(self, serial, width, height, framerate, sinkformat: SinkFormats, showvideo: bool):
         """Inialize a device, e.g. camera.
@@ -106,7 +107,7 @@ class TIS:
             if self.samplelocked is False:
                 try:
                     self.sample = appsink.get_property("last-sample")
-                    if self.ImageCallback is not None:
+                    if self.ImageCallback is not None and not self._stopped:
                         self.__convert_sample_to_numpy()
                         self.ImageCallback(self, *self.ImageCallbackData)
 
@@ -153,6 +154,8 @@ class TIS:
         except Exception:  # GError as error:
             print("Error starting pipeline: unknown too")
             raise
+        with self._lock:
+            self._stopped = False
         return True
 
     def __convert_sample_to_numpy(self):
@@ -227,6 +230,11 @@ class TIS:
         return self.img_mat
 
     def Stop_pipeline(self):
+        # stop delivering frames before tearing the pipeline down, so an in-flight or late
+        # on_new_buffer callback can't race the state transition (guarded by self._lock, which
+        # on_new_buffer also holds)
+        with self._lock:
+            self._stopped = True
         self.pipeline.set_state(Gst.State.PAUSED)
         self.pipeline.set_state(Gst.State.READY)
         self.pipeline.set_state(Gst.State.NULL)

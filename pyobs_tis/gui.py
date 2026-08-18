@@ -89,10 +89,20 @@ class PropertyPanel(QtWidgets.QGroupBox):
         return label
 
     def _set(self, name: str, value: Any) -> None:
-        try:
-            self._camera.Set_Property(name, value)
-        except Exception as e:
-            print(f"Could not set property {name}: {e}")
+        # schedule the (blocking) tcam property write off the GUI thread; called from Qt signal
+        # handlers, so fire-and-forget rather than await
+        asyncio.ensure_future(self._set_async(name, value))
+
+    async def _set_async(self, name: str, value: Any) -> None:
+        loop = asyncio.get_running_loop()
+
+        def _do() -> None:
+            try:
+                self._camera.Set_Property(name, value)
+            except Exception as e:
+                print(f"Could not set property {name}: {e}")
+
+        await loop.run_in_executor(None, _do)
 
 
 class MainWindow(QtWidgets.QMainWindow):
