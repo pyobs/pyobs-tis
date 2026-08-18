@@ -1,1 +1,1 @@
-from .tiscamera import TisCamera
+from .tiscamera import TisCamera as TisCamera

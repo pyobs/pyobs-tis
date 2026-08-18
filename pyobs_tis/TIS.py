@@ -1,11 +1,11 @@
+import re
 import time
 from collections import namedtuple
+from enum import Enum
 
 import gi
-import re
 import numpy
-from enum import Enum
-from gi.repository import GLib, GObject, Gst, Tcam
+from gi.repository import GLib, GObject, Gst
 
 gi.require_version("Gst", "1.0")
 gi.require_version("Tcam", "1.0")
@@ -85,7 +85,7 @@ class TIS:
         try:
             self.pipeline = Gst.parse_launch(p)
         except GLib.Error as error:
-            print("Error creating pipeline: {0}".format(error))
+            print(f"Error creating pipeline: {error}")
             raise
 
         # Quere the source module.
@@ -108,7 +108,7 @@ class TIS:
                     self.ImageCallback(self, *self.ImageCallbackData)
 
             except GLib.Error as error:
-                print("Error on_new_buffer pipeline: {0}".format(error))
+                print(f"Error on_new_buffer pipeline: {error}")
                 raise
         return False
 
@@ -123,11 +123,9 @@ class TIS:
         Set pixel and sink format and frame rate
         """
         caps = Gst.Caps.new_empty()
-        format = "video/x-raw,format=%s,width=%d,height=%d,framerate=%s" % (
-            SinkFormats.toString(self.sinkformat),
-            self.width,
-            self.height,
-            self.framerate,
+        format = (
+            f"video/x-raw,format={SinkFormats.toString(self.sinkformat)},"
+            f"width={self.width},height={self.height},framerate={self.framerate}"
         )
         structure = Gst.Structure.new_from_string(format)
 
@@ -146,11 +144,11 @@ class TIS:
             self.pipeline.set_state(Gst.State.PLAYING)
             error = self.pipeline.get_state(5000000000)
             if error[1] != Gst.State.PLAYING:
-                print("Error starting pipeline. {0}".format(""))
+                print("Error starting pipeline.")
                 return False
 
-        except:  # GError as error:
-            print("Error starting pipeline: {0}".format("unknown too"))
+        except Exception:  # GError as error:
+            print("Error starting pipeline: unknown too")
             raise
         return True
 
@@ -172,7 +170,6 @@ class TIS:
 
             bpp = 4
             dtype = numpy.uint8
-            bla = caps.get_structure(0).get_value("height")
             if caps.get_structure(0).get_value("format") == "BGRx":
                 bpp = 4
 
@@ -213,7 +210,7 @@ class TIS:
             return False
 
         self.wait_for_image(timeout)
-        if self.sample != None and self.newsample == True:
+        if self.sample is not None and self.newsample:
             self.__convert_sample_to_numpy()
             return True
 
@@ -258,13 +255,13 @@ class TIS:
 
         i = 0
         for single_serial in serials:
-            (return_value, model, identifier, connection_type) = source.get_device_info(single_serial)
+            return_value, model, identifier, connection_type = source.get_device_info(single_serial)
 
             # return value would be False when a non-existant serial is used
             # since we are iterating get_device_serials this should not happen
             if return_value:
                 i = i + 1
-                print("{} : Model: {} Serial: {} ".format(i, model, single_serial))
+                print(f"{i} : Model: {model} Serial: {single_serial} ")
 
         source = None
 
@@ -285,7 +282,7 @@ class TIS:
         for key, value in formats.items():
             f.append(key)
             i = i + 1
-            print("{}: {}".format(i, key))
+            print(f"{i}: {key}")
 
         i = int(input("Select : "))
         if i == 0:
@@ -295,7 +292,7 @@ class TIS:
         i = 0
         for res in formats[format].res_list:
             i = i + 1
-            print("{}:  {}x{}".format(i, res.width, res.height))
+            print(f"{i}:  {res.width}x{res.height}")
 
         i = int(input("Select : "))
         if i == 0:
@@ -306,7 +303,7 @@ class TIS:
         o = 0
         for rate in formats[format].res_list[i - 1].fps:
             o += 1
-            print("{}:  {}".format(o, rate))
+            print(f"{o}:  {rate}")
 
         framerate = formats[format].res_list[i - 1].fps[o - 1]
         o = int(input("Select : "))
@@ -347,7 +344,7 @@ class TIS:
 
                 format_dict[format].res_list.append(ResDesc(width, height, r))
 
-            except:
+            except Exception:
                 pass
 
         source.set_state(Gst.State.NULL)
