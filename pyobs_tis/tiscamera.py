@@ -1,4 +1,5 @@
 import asyncio
+import concurrent.futures
 import logging
 import time
 from typing import Any
@@ -68,7 +69,7 @@ class TisCamera(BaseVideo):
             return
         future = asyncio.run_coroutine_threadsafe(self.new_image(tis), self._loop)
 
-        def _log_result(fut: asyncio.Future) -> None:
+        def _log_result(fut: concurrent.futures.Future) -> None:
             try:
                 fut.result()
             except Exception:
