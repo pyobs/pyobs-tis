@@ -66,7 +66,15 @@ class TisCamera(BaseVideo):
         """Called by TIS on its GStreamer thread: hand the coroutine to our event loop."""
         if self._loop is None:
             return
-        asyncio.run_coroutine_threadsafe(self.new_image(tis), self._loop)
+        future = asyncio.run_coroutine_threadsafe(self.new_image(tis), self._loop)
+
+        def _log_result(fut: asyncio.Future) -> None:
+            try:
+                fut.result()
+            except Exception:
+                log.exception("Error processing new image.")
+
+        future.add_done_callback(_log_result)
 
     async def new_image(self, tis: Any) -> None:
         if self._last_image_time is not None and time.time() < self._last_image_time + self._interval:
