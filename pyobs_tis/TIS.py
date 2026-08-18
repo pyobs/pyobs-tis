@@ -1,4 +1,5 @@
 import re
+import threading
 import time
 from collections import namedtuple
 from enum import Enum
@@ -53,6 +54,7 @@ class TIS:
         self.img_mat = None
         self.ImageCallback = None
         self.pipeline = None
+        self._lock = threading.Lock()
 
     def openDevice(self, serial, width, height, framerate, sinkformat: SinkFormats, showvideo: bool):
         """Inialize a device, e.g. camera.
@@ -99,17 +101,18 @@ class TIS:
         self.appsink.connect("new-sample", self.on_new_buffer)
 
     def on_new_buffer(self, appsink):
-        self.newsample = True
-        if self.samplelocked is False:
-            try:
-                self.sample = appsink.get_property("last-sample")
-                if self.ImageCallback is not None:
-                    self.__convert_sample_to_numpy()
-                    self.ImageCallback(self, *self.ImageCallbackData)
+        with self._lock:
+            self.newsample = True
+            if self.samplelocked is False:
+                try:
+                    self.sample = appsink.get_property("last-sample")
+                    if self.ImageCallback is not None:
+                        self.__convert_sample_to_numpy()
+                        self.ImageCallback(self, *self.ImageCallbackData)
 
-            except GLib.Error as error:
-                print(f"Error on_new_buffer pipeline: {error}")
-                raise
+                except GLib.Error as error:
+                    print(f"Error on_new_buffer pipeline: {error}")
+                    raise
         return False
 
     def setSinkFormat(self, sf: SinkFormats):
@@ -166,7 +169,6 @@ class TIS:
         success, info = mem.map(Gst.MapFlags.READ)
         if success:
             data = info.data
-            mem.unmap(info)
 
             bpp = 4
             dtype = numpy.uint8
@@ -184,7 +186,8 @@ class TIS:
                 (caps.get_structure(0).get_value("height"), caps.get_structure(0).get_value("width"), bpp),
                 buffer=data,
                 dtype=dtype,
-            )
+            ).copy()
+            mem.unmap(info)
             self.newsample = False
             self.samplelocked = False
 
@@ -195,7 +198,10 @@ class TIS:
         """
 
         tries = 10
-        while tries > 0 and not self.newsample:
+        while tries > 0:
+            with self._lock:
+                if self.newsample:
+                    break
             tries -= 1
             time.sleep(float(timeout) / 10.0)
 
@@ -210,9 +216,10 @@ class TIS:
             return False
 
         self.wait_for_image(timeout)
-        if self.sample is not None and self.newsample:
-            self.__convert_sample_to_numpy()
-            return True
+        with self._lock:
+            if self.sample is not None and self.newsample:
+                self.__convert_sample_to_numpy()
+                return True
 
         return False
 
