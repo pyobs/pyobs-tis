@@ -1,3 +1,5 @@
+import asyncio
+import concurrent.futures
 import logging
 import time
 from typing import Any
@@ -17,6 +19,7 @@ class TisCamera(BaseVideo):
         # typed as Any: the underlying TIS wrapper is a dynamic GObject/GStreamer binding
         self._camera: Any = None
         self._last_image_time: float | None = None
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     async def open(self) -> None:
         """Open module"""
@@ -43,10 +46,14 @@ class TisCamera(BaseVideo):
         # open camera
         log.info("Opening webcam with %dx%d at %s fps.", res.width, res.height, fps)
         self._camera.openDevice(self._device, res.width, res.height, fps, TIS.SinkFormats.GRAY8, False)
-        self._camera.Set_Image_Callback(self.new_image)
+
+        # the image callback fires on a GStreamer thread, so schedule the coroutine onto our event loop
+        self._loop = asyncio.get_running_loop()
+        self._camera.Set_Image_Callback(self._on_new_image)
 
         # start taking images
         if not self._camera.Start_pipeline():
+            self._camera.Stop_pipeline()
             raise ValueError("Could not start pipeline.")
 
     async def close(self) -> None:
@@ -55,6 +62,20 @@ class TisCamera(BaseVideo):
 
         # stop live video stream
         self._camera.Stop_pipeline()
+
+    def _on_new_image(self, tis: Any) -> None:
+        """Called by TIS on its GStreamer thread: hand the coroutine to our event loop."""
+        if self._loop is None:
+            return
+        future = asyncio.run_coroutine_threadsafe(self.new_image(tis), self._loop)
+
+        def _log_result(fut: concurrent.futures.Future) -> None:
+            try:
+                fut.result()
+            except Exception:
+                log.exception("Error processing new image.")
+
+        future.add_done_callback(_log_result)
 
     async def new_image(self, tis: Any) -> None:
         if self._last_image_time is not None and time.time() < self._last_image_time + self._interval:
