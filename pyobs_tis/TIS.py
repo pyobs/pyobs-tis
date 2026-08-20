@@ -1,4 +1,5 @@
 import re
+import threading
 import time
 from collections import namedtuple
 from enum import Enum
@@ -11,7 +12,7 @@ gi.require_version("Gst", "1.0")
 gi.require_version("Tcam", "1.0")
 
 
-DeviceInfo = namedtuple("DeviceInfo", "status name identifier connection_type")
+DeviceInfo = namedtuple("DeviceInfo", "serial name identifier connection_type")
 CameraProperty = namedtuple("CameraProperty", "status value min max default step type flags category group")
 
 
@@ -53,6 +54,8 @@ class TIS:
         self.img_mat = None
         self.ImageCallback = None
         self.pipeline = None
+        self._lock = threading.Lock()
+        self._stopped = False
 
     def openDevice(self, serial, width, height, framerate, sinkformat: SinkFormats, showvideo: bool):
         """Inialize a device, e.g. camera.
@@ -99,17 +102,18 @@ class TIS:
         self.appsink.connect("new-sample", self.on_new_buffer)
 
     def on_new_buffer(self, appsink):
-        self.newsample = True
-        if self.samplelocked is False:
-            try:
-                self.sample = appsink.get_property("last-sample")
-                if self.ImageCallback is not None:
-                    self.__convert_sample_to_numpy()
-                    self.ImageCallback(self, *self.ImageCallbackData)
+        with self._lock:
+            self.newsample = True
+            if self.samplelocked is False:
+                try:
+                    self.sample = appsink.get_property("last-sample")
+                    if self.ImageCallback is not None and not self._stopped:
+                        self.__convert_sample_to_numpy()
+                        self.ImageCallback(self, *self.ImageCallbackData)
 
-            except GLib.Error as error:
-                print(f"Error on_new_buffer pipeline: {error}")
-                raise
+                except GLib.Error as error:
+                    print(f"Error on_new_buffer pipeline: {error}")
+                    raise
         return False
 
     def setSinkFormat(self, sf: SinkFormats):
@@ -150,6 +154,8 @@ class TIS:
         except Exception:  # GError as error:
             print("Error starting pipeline: unknown too")
             raise
+        with self._lock:
+            self._stopped = False
         return True
 
     def __convert_sample_to_numpy(self):
@@ -166,7 +172,6 @@ class TIS:
         success, info = mem.map(Gst.MapFlags.READ)
         if success:
             data = info.data
-            mem.unmap(info)
 
             bpp = 4
             dtype = numpy.uint8
@@ -184,7 +189,8 @@ class TIS:
                 (caps.get_structure(0).get_value("height"), caps.get_structure(0).get_value("width"), bpp),
                 buffer=data,
                 dtype=dtype,
-            )
+            ).copy()
+            mem.unmap(info)
             self.newsample = False
             self.samplelocked = False
 
@@ -195,7 +201,10 @@ class TIS:
         """
 
         tries = 10
-        while tries > 0 and not self.newsample:
+        while tries > 0:
+            with self._lock:
+                if self.newsample:
+                    break
             tries -= 1
             time.sleep(float(timeout) / 10.0)
 
@@ -210,9 +219,10 @@ class TIS:
             return False
 
         self.wait_for_image(timeout)
-        if self.sample is not None and self.newsample:
-            self.__convert_sample_to_numpy()
-            return True
+        with self._lock:
+            if self.sample is not None and self.newsample:
+                self.__convert_sample_to_numpy()
+                return True
 
         return False
 
@@ -220,12 +230,21 @@ class TIS:
         return self.img_mat
 
     def Stop_pipeline(self):
+        # stop delivering frames before tearing the pipeline down, so an in-flight or late
+        # on_new_buffer callback can't race the state transition (guarded by self._lock, which
+        # on_new_buffer also holds)
+        with self._lock:
+            self._stopped = True
         self.pipeline.set_state(Gst.State.PAUSED)
         self.pipeline.set_state(Gst.State.READY)
         self.pipeline.set_state(Gst.State.NULL)
 
+    def get_property_names(self) -> list:
+        """Return the list of tcam property names for the currently open device."""
+        return list(self.source.get_tcam_property_names())
+
     def List_Properties(self):
-        for name in self.source.get_tcam_property_names():
+        for name in self.get_property_names():
             print(name)
 
     def Get_Property(self, PropertyName):
@@ -245,6 +264,20 @@ class TIS:
     def Set_Image_Callback(self, function, *data):
         self.ImageCallback = function
         self.ImageCallbackData = data
+
+    @staticmethod
+    def list_devices() -> list["DeviceInfo"]:
+        """Enumerate available TIS/tcam devices, without any interactive prompts."""
+        source = Gst.ElementFactory.make("tcamsrc")
+        serials = source.get_device_serials()
+
+        devices = []
+        for serial in serials:
+            status, model, identifier, connection_type = source.get_device_info(serial)
+            if status:
+                devices.append(DeviceInfo(serial, model, identifier, connection_type))
+
+        return devices
 
     def selectDevice(self):
         """Select a camera, its video format and frame rate
