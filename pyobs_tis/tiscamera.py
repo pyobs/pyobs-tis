@@ -4,7 +4,9 @@ import logging
 import time
 from typing import Any
 
+from pyobs.images import Image
 from pyobs.modules.camera import BaseVideo
+from pyobs.utils.enums import ImageType
 
 log = logging.getLogger(__name__)
 
@@ -20,6 +22,8 @@ class TisCamera(BaseVideo):
         self._camera: Any = None
         self._last_image_time: float | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._resolution: tuple[int, int] | None = None
+        self._fps: float | None = None
 
     async def open(self) -> None:
         """Open module"""
@@ -42,6 +46,8 @@ class TisCamera(BaseVideo):
         # resolution and fps
         res = fmt.res_list[0]
         fps = res.fps[0]
+        self._resolution = (res.width, res.height)
+        self._fps = fps
 
         # open camera
         log.info("Opening webcam with %dx%d at %s fps.", res.width, res.height, fps)
@@ -62,6 +68,17 @@ class TisCamera(BaseVideo):
 
         # stop live video stream
         self._camera.Stop_pipeline()
+
+    async def _finish_image(self, image: Image, broadcast: bool, image_type: ImageType) -> tuple[Image, str]:
+        """Add device identity/format headers, then finish up as usual (BaseVideo has no
+        per-frame header hook of its own, so this is the earliest point after add_fits_headers()
+        and before the image is serialized to bytes)."""
+        image.header["INSTRUME"] = (self._device, "Camera serial number")
+        if self._resolution is not None:
+            image.header["VIDFMT"] = (f"{self._resolution[0]}x{self._resolution[1]}", "Video resolution used")
+        if self._fps is not None:
+            image.header["VIDFPS"] = (self._fps, "Video frame rate used [fps]")
+        return await super()._finish_image(image, broadcast, image_type)
 
     def _on_new_image(self, tis: Any) -> None:
         """Called by TIS on its GStreamer thread: hand the coroutine to our event loop."""
