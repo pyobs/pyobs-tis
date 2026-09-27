@@ -1,7 +1,6 @@
 import asyncio
 import concurrent.futures
 import logging
-import time
 from typing import Any
 
 from pyobs.images import Image
@@ -20,7 +19,6 @@ class TisCamera(BaseVideo):
         self._format = format
         # typed as Any: the underlying TIS wrapper is a dynamic GObject/GStreamer binding
         self._camera: Any = None
-        self._last_image_time: float | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
         self._resolution: tuple[int, int] | None = None
         self._fps: float | None = None
@@ -95,11 +93,9 @@ class TisCamera(BaseVideo):
         future.add_done_callback(_log_result)
 
     async def new_image(self, tis: Any) -> None:
-        if self._last_image_time is not None and time.time() < self._last_image_time + self._interval:
-            return
-        self._last_image_time = time.time()
-
-        # get image and process it
+        # deliver every frame -- BaseVideo's video_handler/_set_image() already throttle the
+        # live-view JPEG output to self._interval on their own, and grab_stack()/grab_data()/the
+        # raw stream all need the real per-frame rate
         img = self._camera.Get_image()
         await self._set_image(img[:, :, 0])
 
