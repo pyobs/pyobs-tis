@@ -984,7 +984,7 @@ name = "importlib-metadata"
 version = "9.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "zipp" },
+    { name = "zipp", marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a9/01/15bb152d77b21318514a96f43af312635eb2500c96b55398d020c93d86ea/importlib_metadata-9.0.0.tar.gz", hash = "sha256:a4f57ab599e6a2e3016d7595cfd72eb4661a5106e787a95bcc90c7105b831efc", size = 56405, upload-time = "2026-03-20T06:42:56.999Z" }
 wheels = [
@@ -2320,7 +2320,7 @@ wheels = [
 
 [[package]]
 name = "pyobs-core"
-version = "2.10.5"
+version = "2.13.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -2352,9 +2352,9 @@ dependencies = [
     { name = "tenacity" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8e/1e/f73e746b7fca9e5e7c5b4ecb56678c86d2a2256657f9ae7d09272a5fd683/pyobs_core-2.10.5.tar.gz", hash = "sha256:8b57c01448565cc761b32f8850fff9cd425834a79c6febf2012829799c1465dd", size = 422110, upload-time = "2026-09-19T11:29:28.52Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/43/99e30a5a0e42bc49396b876b945ff8c0b8320141f5dcaea959a329c42eaf/pyobs_core-2.13.1.tar.gz", hash = "sha256:54001d7e096dfec2ab1a90cad5d45d35b0d74a28c679266eb88feb1c4045a34f", size = 450687, upload-time = "2026-09-29T08:48:42.267Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/61/c3/efa7d77ded386223962590dde178d5e86dae385a75f33f94e5a8dfafffde/pyobs_core-2.10.5-py3-none-any.whl", hash = "sha256:214acece8b72ff1ddfbbacc5b7153f2e4ec0bd88127f6ce923eb726b81bcf684", size = 654676, upload-time = "2026-09-19T11:29:26.961Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/18/c9eab05e2e78ec6554c4166f1decde3f6274ab6529c9459ee796acff9bfc/pyobs_core-2.13.1-py3-none-any.whl", hash = "sha256:3afd1de36f35d87f49baca1ab0360d1a2f36cd313e29027fdb5679c4f52df897", size = 689504, upload-time = "2026-09-29T08:48:40.59Z" },
 ]
 
 [package.optional-dependencies]
@@ -2393,8 +2393,8 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "numpy", specifier = ">=2.2.5,<3" },
-    { name = "pyobs-core", specifier = ">=2.0.0,<3" },
-    { name = "pyobs-core", extras = ["gui"], marker = "extra == 'gui'", specifier = ">=2.0.0,<3" },
+    { name = "pyobs-core", specifier = ">=2.13.1,<3" },
+    { name = "pyobs-core", extras = ["gui"], marker = "extra == 'gui'", specifier = ">=2.13.1,<3" },
     { name = "qasync", marker = "extra == 'gui'", specifier = ">=0.27" },
 ]
 provides-extras = ["gui"]
@@ -2759,7 +2759,7 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" } },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/7a/97/5a3609c4f8d58b039179648e62dd220f89864f56f7357f5d4f45c29eb2cc/scipy-1.17.1.tar.gz", hash = "sha256:95d8e012d8cb8816c226aef832200b1d45109ed4464303e997c5b13122b297c0", size = 30573822, upload-time = "2026-02-23T00:26:24.851Z" }
 wheels = [
@@ -2838,7 +2838,7 @@ resolution-markers = [
     "python_full_version >= '3.12' and python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
-    { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" } },
+    { name = "numpy", version = "2.5.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/a7/25/c2700dfaf6442b4effaa91af24ebce5dc9d31bb4a69706313aae70d72cd0/scipy-1.18.0.tar.gz", hash = "sha256:67b2ad2ad54c72ca6d04975a9b2df8c3638c34ddd5b28738e94fc2b57929d378", size = 30774447, upload-time = "2026-06-19T15:01:43.456Z" }
 wheels = [
@@ -2889,8 +2889,8 @@ name = "secretstorage"
 version = "3.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "cryptography" },
-    { name = "jeepney" },
+    { name = "cryptography", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
+    { name = "jeepney", marker = "sys_platform != 'emscripten' and sys_platform != 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/1c/03/e834bcd866f2f8a49a85eaff47340affa3bfa391ee9912a952a1faa68c7b/secretstorage-3.5.0.tar.gz", hash = "sha256:f04b8e4689cbce351744d5537bf6b1329c6fc68f91fa666f60a380edddcd11be", size = 19884, upload-time = "2025-11-23T19:02:53.191Z" }
 wheels = [
